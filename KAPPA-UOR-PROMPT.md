@@ -73,17 +73,33 @@ every perf rep, isolated boots, counted byte-identity, negatives published)
 
 | Gate | Question | Green |
 |---|---|---|
-| **F1** (runnable on any box) | Manifest + verify + refuse on a real-writer FTW checkpoint | 100% verify; single-bit tamper → refusal naming the tensor; GB/s reported |
-| **F2** (needs RTX box) | Verify-at-load cost on a real model dir | ≤15% of load, tamper refused |
-| **F3** (RTX) | Page-in verify overhead vs expert stream rate | blake3 ≥ SSD/PCIe stream rate ⇒ verify hides in the copy; report the ratio |
-| **F4** (RTX or CPU-serve) | Witness sidecar overhead at the proxy | within noise; seals audit offline; tamper refused |
-| **F5** (two hosts) | Fleet expert dedup + κ-registry pull | ≥90% expert-bank κ overlap between two installs of one model ⇒ shared store serves the fleet; measure pull-vs-local-SSD latency |
+| **FT1** (runnable on any box) | Manifest + verify + refuse on a real-writer FTW checkpoint | 100% verify; single-bit tamper → refusal naming the tensor; GB/s reported |
+| **FT2** (needs RTX box) | Verify-at-load cost on a real model dir | ≤15% of load, tamper refused |
+| **FT3** (RTX) | Page-in verify overhead vs expert stream rate | blake3 ≥ SSD/PCIe stream rate ⇒ verify hides in the copy; report the ratio |
+| **FT4** (RTX or CPU-serve) | Witness sidecar overhead at the proxy | within noise; seals audit offline; tamper refused |
+| **FT5** (two hosts) | Fleet expert dedup + κ-registry pull | ≥90% expert-bank κ overlap between two installs of one model ⇒ shared store serves the fleet; measure pull-vs-local-SSD latency |
 
-Kill criteria: F3 blake3 slower than the stream rate on the target box ⇒
+Kill criteria: FT3 blake3 slower than the stream rate on the target box ⇒
 page-in verify costs latency — report the number and gate it behind a flag.
-F5 overlap <90% (quantization/repack nondeterminism) ⇒ **that is a
+FT5 overlap <90% (quantization/repack nondeterminism) ⇒ **that is a
 finding**: FTW conversion is not canonical; the fix is a deterministic
 repack, and the finding is worth more than the feature.
+
+## Status 2026-08-24 (all on a no-RTX box)
+
+- **FT1 PASS**: real-FTWWriter checkpoint certifies; 1-bit tamper refused
+  naming `experts.gate_up#L00002`; 3.6 GB/s (`run_ft1.py`).
+- **Plane I built + conformant**: `identity.py` (drop-in `uor_key_fn` for
+  `_get_key_fn`, chained exportable page keys); 4/4 shapes byte-identical
+  vs the uor-addr reference crate (`run_identity_conformance.py`).
+- **FT4 PASS in its CPU-serve form**: `witness_proxy.py` sealed live
+  OpenAI-API traffic (3/3 verified); 1-bit tamper → double refusal (object
+  + referencing seal). Upstream engine in the test was vLLM — the sidecar
+  is engine-portable by construction. Overhead measurement + FreeToken
+  daemon as upstream: pending an RTX box, with FT2/FT3/FT5.
+- Trap FT-T1: `from __future__ import annotations` + function-local
+  `Request` import breaks FastAPI's annotation resolution (params become
+  query fields, 422). Keep runtime annotations real in endpoint modules.
 
 ## Non-negotiables
 - Fork stays mergeable: upstream `main` untouched; work on `kappa` branch.

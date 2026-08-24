@@ -1,4 +1,4 @@
-"""Gate F1 — κ-manifest + verify + refusal on a checkpoint written by the
+"""Gate FT1 — κ-manifest + verify + refusal on a checkpoint written by the
 REAL FTWWriter (loaded from source with its logger dependency stubbed, so no
 GPU stack is needed). Exercises the format's edge cases deliberately:
 multi-shard span (a tensor larger than the shard limit), expert-bank layer
@@ -73,7 +73,7 @@ def main() -> int:
 
     mb = manifest["total_bytes"] / 1e6
     result = {
-        "gate": "F1",
+        "gate": "FT1",
         "tensors": len(manifest["tensors"]),
         "mb": round(mb, 1),
         "manifest_identity": manifest["identity"][:23],
