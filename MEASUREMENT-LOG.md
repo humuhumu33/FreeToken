@@ -53,3 +53,30 @@ Consequences for the substrate program on this box:
 Trap S-T1: FreeToken Desktop's `/bench/run` args are the `ft bench bw`
 argv WITHOUT the subcommand (the endpoint implies it); `--device` takes a
 GPU ordinal, not a string.
+
+## 2026-08-24 — THE UX SWAP: FreeToken Desktop adopts a κ-verified vLLM
+
+Zero patches, zero impostors: the daemon's own ADOPTION mechanism
+(serve.json + `is_ft_serve_on_port`) attaches it to any process satisfying
+the serve identity. `freetoken_kappa/ft_shim.py serve --port 1919`
+satisfies it by construction, answers the daemon's two probe contracts
+(`/health`, `/v1/stats`), 404s `prepare-stop` into the handled legacy path,
+and forwards `/v1/*` to the κ-connector vLLM in WSL with every round-trip
+sealed. Result, all from the REAL daemon:
+
+    /engine/status → {"running":true,"adopted":true,
+        "model":"Qwen2.5 · vLLM · κ-verified","port":1919}
+    /engine/stats  → {"kappaSeals":1,"engine":"vLLM (kappa-connector,
+        verified)","reachable":true}
+
+Chat via :1919 answered; offline audit: 1/1 seals verified. FreeToken's
+face, κ-verified heart — engine swapped with ONE json file and one shim
+process. En route, the day's disk-zero was attributed (4 GB of WSL crash
+diagnostics in Temp\DiagOutputDir + WSL swap.vhdx creation failing at 0
+free) — fixed by deleting diagnostics and `swap=0` in .wslconfig.
+
+Trap S-T2: PowerShell Start-Process -ArgumentList mangles non-ASCII args
+(the κ in --model-label) — let defaults carry unicode, or pass via env.
+Trap S-T3: the daemon's single-instance lock (~/.freetoken/daemon/
+daemon.pid) is the safety: the Desktop app's own spawn attempt exits
+AlreadyRunning and the GUI attaches to whichever daemon holds the lock.
