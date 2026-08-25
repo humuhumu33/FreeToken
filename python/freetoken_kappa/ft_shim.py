@@ -103,9 +103,21 @@ def build_app(upstream: str, model_label: str, store_dir: str):
             if real:
                 try:
                     doc = json.loads(body)
-                    if isinstance(doc, dict) and doc.get("model") != real:
-                        doc["model"] = real
-                        body = json.dumps(doc).encode()
+                    if isinstance(doc, dict):
+                        changed = False
+                        if doc.get("model") != real:
+                            doc["model"] = real
+                            changed = True
+                        # The GUI sends its catalog ctx (e.g. 32768/262144);
+                        # clamp to what this engine was started with so a
+                        # generous default can't exceed max_model_len.
+                        cap = int(os.environ.get("KAPPA_MAX_TOKENS", "1024"))
+                        mt = doc.get("max_tokens")
+                        if not isinstance(mt, int) or mt > cap or mt <= 0:
+                            doc["max_tokens"] = cap
+                            changed = True
+                        if changed:
+                            body = json.dumps(doc).encode()
                 except ValueError:
                     pass
         try:
