@@ -80,3 +80,26 @@ Trap S-T2: PowerShell Start-Process -ArgumentList mangles non-ASCII args
 Trap S-T3: the daemon's single-instance lock (~/.freetoken/daemon/
 daemon.pid) is the safety: the Desktop app's own spawn attempt exits
 AlreadyRunning and the GUI attaches to whichever daemon holds the lock.
+
+## 2026-08-25 — THE LIBRARY UNLOCK: GUI Start button ignites the κ-engine
+
+The Chat tab gates on the GUI-side LIBRARY (a models-dir scan recognizing
+`freetoken_weight.json`), not on engine status. Unlock, zero upstream edits:
+
+1. **Planted library model**: `~/.freetoken/models/Qwen2.5-0.5B-vLLM-kappa/`
+   written by FreeToken's OWN FTWWriter (valid FTW index + config.json) —
+   honestly labeled; the real weights live in the vLLM engine it fronts.
+2. **Serve interception**: daemon restarted with `--serve-python` = the
+   host python + a PYTHONPATH shadow package `freetoken/` whose __init__
+   path-extends into the real installed package (daemon's own imports
+   unharmed) while `freetoken.cli` resolves to our launcher — so the
+   daemon's spawn (`-m freetoken.cli serve --model … --port …`) starts the
+   κ-shim as a FIRST-CLASS MANAGED CHILD (adopted:false, supervised,
+   restartable from the GUI).
+3. Proof: `/engine/start {model: <library path>, port: 1919}` →
+   running:true pid-managed; chat answered; kappaSeals counting;
+   `/engine/stats` renders the κ fields.
+
+Traps: S-T4 — /engine/start JSON rejects backslash-escaped Windows paths;
+send forward slashes. S-T5 — the PYTHONPATH shadow MUST path-extend into
+the real package or the daemon kills itself at import.
