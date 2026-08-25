@@ -44,7 +44,7 @@ def build_app(upstream: str, model_label: str, store_dir: str):
     )
     client = httpx.AsyncClient(base_url=upstream, timeout=600.0)
     state = {"started": time.time(), "requests": 0, "seals": 0,
-             "completion_tokens": 0}
+             "prompt_tokens": 0, "completion_tokens": 0}
 
     @app.get("/health")
     async def health():
@@ -59,12 +59,18 @@ def build_app(upstream: str, model_label: str, store_dir: str):
 
     @app.get("/v1/stats")
     async def stats():
+        # Shape matters: the daemon's legacy stop receipt
+        # (serve_manager._parse_snapshot) requires model_id, uptime_s, and
+        # integer prompt/completion token totals — `requests` must NOT be a
+        # scalar (it is inspected as a dict fallback).
         up = time.time() - state["started"]
         return {
+            "model_id": model_label,
             "model": model_label,
             "uptime_s": round(up, 1),
-            "requests": state["requests"],
-            "completion_tokens": state["completion_tokens"],
+            "prompt_tokens_total": state["prompt_tokens"],
+            "completion_tokens_total": state["completion_tokens"],
+            "requests_total": state["requests"],
             "kappa_seals": state["seals"],
             "kappa_store": store_dir,
             "engine": "vLLM (kappa-connector, verified)",
@@ -91,8 +97,9 @@ def build_app(upstream: str, model_label: str, store_dir: str):
             seal_roundtrip(store, upstream, body, r.content)
             state["seals"] += 1
             try:
-                state["completion_tokens"] += json.loads(r.content).get(
-                    "usage", {}).get("completion_tokens", 0)
+                usage = json.loads(r.content).get("usage", {})
+                state["prompt_tokens"] += usage.get("prompt_tokens", 0)
+                state["completion_tokens"] += usage.get("completion_tokens", 0)
             except ValueError:
                 pass
         return Response(content=r.content, status_code=r.status_code,
