@@ -79,9 +79,35 @@ def build_app(upstream: str, model_label: str, store_dir: str):
     # /v1/admin/prepare-stop intentionally absent: the daemon's probe treats
     # 404 as the supported legacy-engine path.
 
+    upstream_model: dict = {"id": None}
+
+    async def _upstream_model_id() -> str | None:
+        if upstream_model["id"] is None:
+            try:
+                r = await client.get("/v1/models")
+                upstream_model["id"] = r.json()["data"][0]["id"]
+            except Exception:
+                return None
+        return upstream_model["id"]
+
     @app.api_route("/{path:path}", methods=["GET", "POST"])
     async def relay(path: str, request: Request):
         body = await request.body()
+        # The GUI names models by its library entry; the upstream serves its
+        # own id. Rewrite so any client name maps to the engine actually
+        # running (the seal records what was truly served).
+        if request.method == "POST" and path.rstrip("/").endswith(
+            ("chat/completions", "completions", "messages")
+        ):
+            real = await _upstream_model_id()
+            if real:
+                try:
+                    doc = json.loads(body)
+                    if isinstance(doc, dict) and doc.get("model") != real:
+                        doc["model"] = real
+                        body = json.dumps(doc).encode()
+                except ValueError:
+                    pass
         try:
             r = await client.request(
                 request.method, "/" + path, content=body,
